@@ -153,12 +153,18 @@
 		positions, I wrote a small offscreen driver that reproduces
 		<code>DrawRend::redraw()</code> and <code>DrawRend::draw_zoom()</code> exactly but takes
 		all of those as command-line arguments, and writes PNGs through the same lodepng encoder
-		the <code>S</code> hotkey uses. I verified it is faithful by rendering the same scene
+		the <code>S</code> hotkey uses. I verified it is faithful by rendering the same scenes
 		both ways &mdash; through <code>./draw &lt;svg&gt; nogl 800 800</code> and through the
-		driver &mdash; and diffing the decoded pixels: <b>zero differing pixels</b>, not merely a
-		small difference. Every image below is therefore a lossless PNG of the exact framebuffer
-		the GUI would have blitted, with the pixel inspector composited in the top-right corner
-		exactly where <code>DrawRend::draw_zoom()</code> puts it.
+		driver &mdash; and diffing the decoded pixels. <code>test4.svg</code> at sample rate 1
+		comes out pixel-identical; on other scenes at most a handful of pixels differ, each one
+		a sample sitting close enough to a boundary that a relative difference of about
+		10<sup>-7</sup> in the camera span decides which side it falls on. (The driver computes
+		that span from a float <code>1.2f</code> where <code>DrawRend::view_init()</code> uses a
+		double <code>1.2</code>, which moves the view by about 5&times;10<sup>-5</sup> of a
+		pixel.) No image's visible content is affected. Every image below is therefore a
+		lossless PNG of the framebuffer the GUI would have blitted, with the pixel inspector
+		composited in the top-right corner exactly where <code>DrawRend::draw_zoom()</code>
+		puts it.
 		</div>
 
 		<h2>Task 1: Drawing Single-Color Triangles</h2>
