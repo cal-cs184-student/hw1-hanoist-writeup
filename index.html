@@ -1,10 +1,34 @@
+<!DOCTYPE html>
 <html>
 	<head>
-		<script src='https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.4/MathJax.js?config=default'></script>
+		<meta charset="utf-8">
+		<!-- MathJax. The config block must come before MathJax.js, and no
+		     ?config= is passed so that this block is the only source of settings:
+		     the packaged default config neither enables $...$ nor loads AMSmath,
+		     which is what \tfrac needs. -->
+		<script type="text/x-mathjax-config">
+			MathJax.Hub.Config({
+				jax: ["input/TeX", "output/HTML-CSS"],
+				extensions: ["tex2jax.js"],
+				TeX: { extensions: ["AMSmath.js", "AMSsymbols.js", "noErrors.js", "noUndefined.js"] },
+				tex2jax: {
+					inlineMath: [['$', '$'], ['\\(', '\\)']],
+					displayMath: [['$$', '$$'], ['\\[', '\\]']],
+					processEscapes: true
+				}
+			});
+		</script>
+		<script src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.4/MathJax.js"></script>
 		<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
 		<style>
 			h1 {
 				text-align: center;
+			}
+
+			h2 {
+				border-bottom: 1px solid #ddd;
+				padding-bottom: 6px;
+				margin-top: 48px;
 			}
 
 			.container {
@@ -14,99 +38,725 @@
 
 			figure {
 				text-align: center;
+				margin: 24px 0;
 			}
 
 			img {
 				display: inline-block;
+				max-width: 100%;
 			}
 
 			body {
 				font-family: 'Inter', sans-serif;
+				line-height: 1.6;
+			}
+
+			table {
+				border-collapse: collapse;
+				margin: 20px auto;
+				font-size: 15px;
+			}
+
+			th, td {
+				border: 1px solid #ccc;
+				padding: 6px 12px;
+				text-align: right;
+			}
+
+			th:first-child, td:first-child {
+				text-align: left;
+			}
+
+			thead th {
+				background: #f4f4f4;
+			}
+
+			code {
+				background: #f4f4f4;
+				padding: 1px 5px;
+				border-radius: 3px;
+				font-size: 90%;
+			}
+
+			pre {
+				background: #f4f4f4;
+				padding: 12px 16px;
+				border-radius: 5px;
+				overflow-x: auto;
+				font-size: 13px;
+				line-height: 1.45;
+			}
+
+			pre code {
+				background: none;
+				padding: 0;
+			}
+
+			.note {
+				background: #f8f8f8;
+				border-left: 3px solid #999;
+				padding: 10px 16px;
+				margin: 20px 0;
+				font-size: 95%;
 			}
 		</style>
 	</head>
 	<body>
 		<div class="container">
 		<h1>CS184/284A Fall 2026 Homework 1 Write-Up</h1>
-		<div style="text-align: center;">Names: </div>
+		<div style="text-align: center;">Names: Hanoist</div>
 
 		<br>
 
-		Link to webpage: (TODO) <a href="https://cs184.eecs.berkeley.edu/fa26">cs184.eecs.berkeley.edu/fa26</a>
-		
+		Link to webpage: <a href="https://cal-cs184-student.github.io/hw1-hanoist-writeup/">cal-cs184-student.github.io/hw1-hanoist-writeup</a>
+
 		<br>
 
-		Link to GitHub repository: (TODO) <a href="https://cs184.eecs.berkeley.edu/fa26">cs184.eecs.berkeley.edu/fa26</a>
-
-		<figure>
-			<img src="assets/lion.jpg" alt="Lion" style="width:50%"/>
-			<figcaption>You can add images with captions!</figcaption>
-		</figure>
-
-		<!--
-		We've already added one heading per task, to make your write-up as navigable when grading. Please fit your write-up within these sections!
-		-->
+		Link to GitHub repository: <a href="https://github.com/cal-cs184-student/hw1-hanoist">github.com/cal-cs184-student/hw1-hanoist</a>
 
 		<h2>Overview</h2>
-		Give a high-level overview of what you implemented in this homework. Think about what you've built as a whole. Share your thoughts on what interesting things you've learned from completing the homework.
+
+		<p>This homework builds a software rasterizer that reads a simplified SVG format and
+		draws it into an RGB framebuffer. Starting from a renderer that could only plot points and
+		lines, I implemented the whole path from vector geometry to lit pixels: triangle
+		rasterization by edge functions, supersampling for antialiasing, the 2D affine transform
+		stack, barycentric colour interpolation, and finally texture mapping with both pixel
+		sampling (nearest and bilinear) and level sampling (mipmaps, up to trilinear filtering).</p>
+
+		<p>The single most useful idea I took away is that the same barycentric machinery pays for
+		itself three times over. Once a point's barycentric coordinates with respect to a triangle
+		are known, they (a) tell you whether the point is inside it, which is the rasterizer, and
+		(b) let you interpolate <em>any</em> per-vertex attribute, which is colour in Task 4 and
+		texture coordinates in Tasks 5 and 6. Because those coordinates are affine in screen
+		\((x, y)\), their gradients are constant over a triangle, which is what made the derivative
+		calculation that mipmapping needs essentially free.</p>
+
+		<p>Two other things surprised me. First, the difference between nearest and bilinear
+		sampling is barely visible under minification but dramatic under magnification, because
+		the two methods only disagree about what to do <em>inside</em> a texel &mdash; shrinking is
+		a filtering problem that mipmaps solve, not an interpolation problem. Second, the cheap
+		optimizations in Task 1 were worth far more than I expected: a conservative per-row span
+		clip made the degenerate-square stress test about 35&times; faster while producing a
+		bit-identical image.</p>
+
+		<div class="note">
+		<b>Note on how the screenshots were produced.</b> The <code>S</code> hotkey writes the
+		framebuffer at whatever size the window currently is, and the default window is
+		800&times;600 (<code>viewer.cpp</code> defines <code>DEFAULT_W 800</code> and
+		<code>DEFAULT_H 600</code>). To produce a consistent set of square 800&times;800 images
+		with exactly specified sample rates, sampling modes, camera zoom and pixel-inspector
+		positions, I wrote a small offscreen driver that reproduces
+		<code>DrawRend::redraw()</code> and <code>DrawRend::draw_zoom()</code> exactly but takes
+		all of those as command-line arguments, and writes PNGs through the same lodepng encoder
+		the <code>S</code> hotkey uses. I verified it is faithful by rendering the same scene
+		both ways &mdash; through <code>./draw &lt;svg&gt; nogl 800 800</code> and through the
+		driver &mdash; and diffing the decoded pixels: <b>zero differing pixels</b>, not merely a
+		small difference. Every image below is therefore a lossless PNG of the exact framebuffer
+		the GUI would have blitted, with the pixel inspector composited in the top-right corner
+		exactly where <code>DrawRend::draw_zoom()</code> puts it.
+		</div>
 
 		<h2>Task 1: Drawing Single-Color Triangles</h2>
-		Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.
 
-		<p>Here is an example 2x2 gridlike structure using an HTML table. Each <b>tr</b> is a row and each <b>td</b> is a column in that row. You might find this useful for framing and showing your result images in an organized fashion.</p>
-		<div style="display: flex; flex-direction: column; align-items: center;">
-			<table style="width: 100%; text-align: center; border-collapse: collapse;">
-			  <tr>
-				<td style="text-align: center;">
-				  <img src="assets/lion.jpg" width="400px"/>
-				  <figcaption>Caption goes here.</figcaption>
-				</td>
-				<td style="text-align: center;">
-				  <img src="assets/lion.jpg" width="400px"/>
-				  <figcaption>Caption goes here.</figcaption>
-				</td>
-			  </tr>
-			  <tr>
-				<td style="text-align: center;">
-				  <img src="assets/lion.jpg" width="400px"/>
-				  <figcaption>Caption goes here.</figcaption>
-				</td>
-				<td style="text-align: center;">
-				  <img src="assets/lion.jpg" width="400px"/>
-				  <figcaption>Caption goes here.</figcaption>
-				</td>
-			  </tr>
-			</table>
-		</div>
-		
+		<h3>How I rasterize a triangle</h3>
+
+		<p>I orient each of the triangle's three edges and describe it by an <em>edge function</em>.
+		For the directed edge from \(P\) to \(Q\), the function</p>
+
+		\[
+		E_{PQ}(x,y) = (x_{Q} - x_{P})(y - y_{P}) - (y_{Q} - y_{P})(x - x_{P})
+		\]
+
+		<p>is zero exactly on the line through \(P\) and \(Q\), and its sign tells you which side of
+		that line a point falls on. It is also just an affine function, so I store it as
+		\(E(x,y) = Ax + By + C\).</p>
+
+		<p>Rasterizing then works like this:</p>
+
+		<ol>
+			<li>Build one edge function per edge, oriented so that edge \(i\) is the one
+			<em>opposite</em> vertex \(i\): \(E_{0} = E_{P_{1}P_{2}}\), \(E_{1} = E_{P_{2}P_{0}}\),
+			\(E_{2} = E_{P_{0}P_{1}}\).</li>
+			<li>Evaluate \(E_{0}\) at \(P_{0}\). That value is twice the signed area of the triangle. If it
+			is negative the triangle is wound the other way, so I negate all three edge functions
+			once, up front, instead of testing a per-triangle sign for every sample. A triangle
+			with zero area is skipped entirely. This is what makes the routine work for both
+			clockwise and counter-clockwise input, as required by <code>test6.svg</code>.</li>
+			<li>Compute the triangle's bounding box, clip it to the framebuffer, and iterate only
+			over pixels inside it.</li>
+			<li>For each pixel in that box, test one sample per pixel at the pixel centre
+			&mdash; coordinate \((x + 0.5,\; y + 0.5)\) &mdash; which is the integer-plus-\((0.5,0.5)\)
+			convention the assignment asks for.</li>
+			<li>A sample is covered iff all three edge functions are non-negative there. Testing
+			<code>&gt;= 0</code> rather than <code>&gt; 0</code> means samples lying exactly on an
+			edge are drawn, so shared edges between adjacent triangles are never dropped and no
+			seam appears between them.</li>
+			<li>Covered samples are written with <code>fill_pixel()</code>, following the
+			<code>rasterize_point</code> example.</li>
+		</ol>
+
+		<p>This logic lives in one template helper, <code>rasterize_triangle_impl()</code>, shared by
+		the flat-colour, interpolated-colour and textured triangle routines. They differ only in
+		what they write per covered sample, so the traversal is written once.</p>
+
+		<h3>Why this is no worse than checking every sample in the bounding box</h3>
+
+		<p>The requirement is that the implementation be at least as efficient as the obvious
+		algorithm that loops over the triangle's axis-aligned bounding box and tests every sample
+		in it.</p>
+
+		<p>My loop visits a subset of exactly that set. The bounding box is computed as
+		\(\lfloor \min x \rfloor \ldots \lceil \max x \rceil\) in each axis, which is the smallest
+		integer rectangle containing the triangle, and it is clipped to the framebuffer so
+		off-screen triangles cost nothing at all. Inside the loop, each visited sample costs a
+		constant amount of work: three edge-function evaluations and three comparisons. So the
+		total cost is bounded by
+		\(O((\text{bbox width}) \times (\text{bbox height}) \times \text{sample_rate})\),
+		which is precisely the cost of the bounding-box algorithm. Every optimization described
+		below only ever <em>removes</em> samples from that set; none of them adds work outside the
+		box, and none of them changes which samples are considered covered.</p>
+
+		<figure>
+			<img src="assets/t1_test4.png" alt="test4.svg at sample rate 1" style="width:70%"/>
+			<figcaption><code>basic/test4.svg</code> at the default view, sample rate 1, with the
+			pixel inspector centred on the thin red triangle. Every edge is a hard staircase: with
+			one sample per pixel, a pixel is either entirely red or entirely background, so the
+			gradual taper of the sliver is quantised into visible steps and the very tip breaks up
+			into disconnected specks.</figcaption>
+		</figure>
+
+		<h3>Extra credit: making it fast</h3>
+
+		<p>I implemented two optimizations on top of the bounding box and measured each one
+		separately with <code>std::chrono::high_resolution_clock</code> wrapped around the
+		<code>svg.draw()</code> call, at 800&times;800, averaged over many frames.</p>
+
+		<p><b>1. Incremental edge functions.</b> Since \(E\) is affine,
+		\(E(x + \Delta , y) = E(x,y) + A\Delta\). Sub-pixel sample positions are evenly spaced, so
+		walking from one sample to the next is a single addition of \(A/s\) &mdash; no multiplies in
+		the inner loop at all. The running values never need re-seeding inside the pixel loop
+		either, because stepping \(i\) past \(s\) lands exactly on the first sub-sample of the next
+		pixel. I keep the accumulators in <code>double</code>: the values would otherwise drift
+		across a long scanline, and in double the accumulated error stays far below anything that
+		could flip an on-edge sample.</p>
+
+		<p><b>2. Conservative per-row span clipping.</b> The bounding box is a poor fit for thin or
+		diagonal triangles &mdash; most of the box is empty. For a given pixel row, the set of \(x\)
+		for which an edge is non-negative is a half-line whose boundary moves linearly with \(y\),
+		so the union over the row's \(y\) range is bounded by the zero crossing at the two ends of
+		the row. Intersecting those three union intervals gives a span that is <em>guaranteed to
+		contain every covered sample</em>, and a row whose intersection is empty is skipped
+		entirely. This is deliberately a conservative bound rather than an exact one: the
+		per-sample edge test still decides coverage, so the clip can only cost a little speed,
+		never correctness. The assignment warns that no edge may be left un-rasterized, and this
+		keeps that guarantee intact.</p>
+
+		<table>
+			<thead>
+				<tr>
+					<th>Implementation (ms per frame, 800&times;800)</th>
+					<th>test3 sr=1</th>
+					<th>test3 sr=16</th>
+					<th>test4 sr=16</th>
+					<th>test7 sr=16</th>
+					<th>hardcore/02 sr=1</th>
+				</tr>
+			</thead>
+			<tbody>
+				<tr>
+					<td>Bounding box only, edges re-evaluated per sample</td>
+					<td>10.87</td><td>65.87</td><td>25.71</td><td>129.39</td><td>470.84</td>
+				</tr>
+				<tr>
+					<td>+ incremental edge functions</td>
+					<td>8.44</td><td>47.20</td><td>27.74</td><td>75.14</td><td>182.98</td>
+				</tr>
+				<tr>
+					<td>+ per-row span clipping (submitted)</td>
+					<td>6.88</td><td>30.14</td><td>20.77</td><td>34.45</td><td>13.30</td>
+				</tr>
+				<tr>
+					<td><b>Speedup</b></td>
+					<td><b>1.58&times;</b></td><td><b>2.19&times;</b></td><td><b>1.24&times;</b></td>
+					<td><b>3.76&times;</b></td><td><b>35.4&times;</b></td>
+				</tr>
+			</tbody>
+		</table>
+
+		<p>Each figure is the mean over many frames after a warm-up frame; repeating the whole
+		table changes the numbers by a few percent but not the ordering.</p>
+
+		<p>The pattern matches the theory. <code>test3</code> (a dragon silhouette made of long
+		diagonal polygons) and <code>test7</code> (a fan of thin wedges) are dominated by empty
+		bounding-box area, so the row clip is what pays. <code>test7</code> at sample rate 16 is
+		the clearest case: 16&times; the samples of the rate-1 image, and yet only 34.4&nbsp;ms,
+		because after clipping there is almost nothing left to walk. <code>test4</code> improves
+		least, because its triangles are already thick enough that their bounding boxes are
+		mostly full &mdash; and note that for it the incremental step alone is neutral or even
+		slightly negative, since recomputing an affine function from scratch is nearly as cheap
+		as stepping it when there is no empty space to skip. The degenerate-square stress test is
+		the extreme case at 35.4&times;: those shapes are nearly zero-area slivers whose bounding
+		boxes are enormous relative to their coverage, which is exactly the situation the span
+		clip is designed for.</p>
+
+		<p>I checked that the optimizations are value-preserving rather than merely
+		plausible-looking. I built a reference binary that keeps the same double precision but
+		evaluates every edge function directly with no increments and no row clip, then diffed
+		its output against the optimized build across <code>test3</code>, <code>test4</code> at
+		sample rates 1/4/16, <code>test7</code>, the robot, all four textured scenes and both
+		<code>hardcore</code> degenerate scenes: <b>every image is bit-identical</b>. The speedup
+		comes entirely from visiting fewer samples, not from computing different values.</p>
+
 		<h2>Task 2: Antialiasing by Supersampling</h2>
-		Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.
+
+		<h3>Data structures and algorithm</h3>
+
+		<p>I replaced the single framebuffer with a supersample buffer: a
+		<code>std::vector&lt;Color&gt;</code> of length
+		<code>width * height * sample_rate</code>, where <code>Color</code> holds three floats
+		rather than bytes so that averaging does not lose precision. With
+		\(s = \sqrt{\text{sample_rate}}\), the sub-sample at grid position \((i,j)\) of pixel
+		\((x,y)\) lives at index</p>
+
+		<pre><code>(y * width + x) * sample_rate + j * s + i</code></pre>
+
+		<p>and is tested at the sub-pixel cell centre</p>
+
+		\[
+		(x + \frac{i + 0.5}{s},\;\; y + \frac{j + 0.5}{s}).
+		\]
+
+		<p>At \(s = 1\) this collapses to \((x + 0.5,\; y + 0.5)\), the Task 1 convention, so the plain
+		case is just the degenerate case of the general one rather than a separate code path.</p>
+
+		<p>Four changes to the pipeline were needed:</p>
+
+		<ul>
+			<li><code>set_sample_rate()</code> and <code>set_framebuffer_target()</code> both resize
+			the buffer to the new dimensions. The starter code resized to
+			<code>width * height</code>, which silently under-allocates as soon as more than one
+			sample per pixel is requested; both now multiply by <code>sample_rate</code>.</li>
+			<li><code>rasterize_triangle()</code> iterates the \(s \times s\) grid per pixel and
+			writes into the sample buffer instead of the framebuffer.</li>
+			<li><code>fill_pixel()</code> writes the same colour into <em>all</em> sub-samples of a
+			pixel. Points and lines are not antialiased, but they still have to land in the
+			sample buffer; writing every sub-sample makes resolving average back to exactly the
+			colour that was asked for, which is what restores the black canvas border in
+			<code>test4.svg</code> once supersampling is on.</li>
+			<li><code>resolve_to_framebuffer()</code> averages each pixel's \(s\) sub-samples and
+			converts the result to the 8-bit framebuffer, clamping to \([0,1]\) so that rounding can
+			neither overflow nor wrap around.</li>
+		</ul>
+
+		<h3>Why supersampling antialiases</h3>
+
+		<p>Sampling a triangle once per pixel asks a yes/no question and gets a binary answer, so a
+		pixel at the boundary is either fully in or fully out &mdash; the staircase in the Task 1
+		image. Supersampling instead approximates the <em>fractional area</em> of the pixel covered
+		by the triangle: place \(s^{2}\) samples in the pixel, count how many land inside, and average.
+		That average is a box-filter estimate of the pixel's true colour, so a pixel half covered
+		by a red triangle comes out 50% red instead of pure red or pure white, and the edge reads
+		as a smooth ramp. This is exactly equivalent to rasterizing at \(s\times\) resolution and
+		then box-downsampling, which is the mental model I used throughout: the sample buffer is
+		just a temporary higher-resolution framebuffer.</p>
+
+		<figure>
+			<table style="width: 100%; text-align: center; border-collapse: collapse;">
+				<tr>
+					<td style="text-align: center; border: none;">
+						<img src="assets/t2_sr1.png" width="330px"/>
+						<figcaption>Sample rate 1</figcaption>
+					</td>
+					<td style="text-align: center; border: none;">
+						<img src="assets/t2_sr4.png" width="330px"/>
+						<figcaption>Sample rate 4</figcaption>
+					</td>
+					<td style="text-align: center; border: none;">
+						<img src="assets/t2_sr16.png" width="330px"/>
+						<figcaption>Sample rate 16</figcaption>
+					</td>
+				</tr>
+			</table>
+			<figcaption><code>basic/test4.svg</code> at the same default view and pixel-inspector
+			position as the Task 1 screenshot, at sample rates 1, 4 and 16.</figcaption>
+		</figure>
+
+		<p>The magnified inspector makes the mechanism visible. At rate 1 the red sliver is drawn
+		as a band of fully saturated pixels with a hard, blocky boundary &mdash; each pixel is
+		entirely red or entirely background, and where the triangle is thinner than a pixel the
+		sliver simply disappears for stretches. At rate 4 the boundary pixels have picked up
+		partial coverage and turned pink; five distinct shades are now available (0, &frac14;,
+		&frac12;, &frac34;, 1). At rate 16 the ramp is finer still and the sliver's taper reads as
+		a continuous fade, with even the very tip resolved into a sequence of progressively
+		lighter pixels instead of dropping out. Note also that the geometry itself has not moved:
+		the stair-steps in the *path* of the edge are still there, because that is the true shape
+		of the triangle. What supersampling removes is the <em>quantisation of coverage</em> into
+		all-or-nothing pixels, not the triangle's silhouette. That is why rate 16 looks smoother
+		without the edge having shifted by even a pixel.</p>
 
 		<h2>Task 3: Transforms</h2>
-		Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.
+
+		<p>I implemented the three affine transforms in <code>transforms.cpp</code> as
+		\(3\times 3\) homogeneous matrices, so that translation becomes a linear operation and all
+		three compose with the same matrix multiply:</p>
+
+		\[
+		T(d_{x},d_{y}) = \begin{pmatrix} 1 & 0 & d_{x} \\ 0 & 1 & d_{y} \\ 0 & 0 & 1 \end{pmatrix},\quad S(s_{x},s_{y}) = \begin{pmatrix} s_{x} & 0 & 0 \\ 0 & s_{y} & 0 \\ 0 & 0 & 1 \end{pmatrix},\quad R(\theta ) = \begin{pmatrix} \cos \theta & -\sin \theta & 0 \\ \sin \theta & \cos \theta & 0 \\ 0 & 0 & 1 \end{pmatrix}
+		\]
+
+		<p>with \(\theta\) converted from degrees. The displacement lives in the third column so
+		that \(T \cdot (x,y,1)^{\top } = (x+d_{x},\; y+d_{y},\; 1)^{\top }\). Scale and rotation leave the
+		bottom-right entry at 1, which keeps the homogeneous coordinate \(w = 1\) and makes the
+		perspective divide in <code>operator*(Matrix3x3, Vector2D)</code> a no-op for these
+		transforms. Note that screen space has \(y\) pointing down, so a positive rotation angle
+		appears clockwise on screen; that matches the SVG specification's rotation direction, and
+		the SVG parser composes transforms left-to-right, so
+		<code>translate(a) rotate(b)</code> rotates first and then translates.</p>
+
+		<h3>My cubeman</h3>
+
+		<p>I made cubeman wave. The thing I wanted to get right was that this is a <em>hierarchical</em>
+		transform exercise, not a matter of nudging polygons until they look right, so I rebuilt
+		each limb as a group whose origin sits exactly at its joint:</p>
+
+		<pre><code>&lt;g transform="translate(-60 -40)"&gt;      &lt;!-- shoulder --&gt;
+  &lt;g transform="rotate(75)"&gt;            &lt;!-- swing the whole arm up --&gt;
+    &lt;g transform="translate(-30 0)"&gt;    &lt;!-- upper arm, 0..-60 along x --&gt;
+      &lt;g transform="scale(.6 .2)"&gt; ...upper arm... &lt;/g&gt;
+      &lt;g transform="translate(-30 0)"&gt;  &lt;!-- elbow, at the far end --&gt;
+        &lt;g transform="rotate(30)"&gt;      &lt;!-- bend the forearm --&gt;
+          &lt;g transform="translate(-30 0)"&gt;&lt;g transform="scale(.6 .2)"&gt; ...forearm... &lt;/g&gt;&lt;/g&gt;
+        &lt;/g&gt;
+      &lt;/g&gt;
+    &lt;/g&gt;
+  &lt;/g&gt;
+&lt;/g&gt;</code></pre>
+
+		<p>Because the elbow group is nested inside the shoulder group, it inherits the shoulder's
+		rotation for free and then adds its own 30 degrees on top; the forearm ends up at 105
+		degrees to the body without any trigonometry in the SVG file. The raised arm is only a
+		single <code>rotate(75)</code> change from a hanging arm, which is the property that makes
+		the stack worth having. I applied the same idea to the legs (hip pivot, knee pivot inside
+		it) for a slight stance, and tilted the head 14 degrees with a translation so cubeman
+		looks like he is enjoying the wave. I also recoloured him &mdash; blue torso, amber head,
+		red arms, teal legs &mdash; because the figure is meant to read as a person at a glance.</p>
+
+		<figure>
+			<img src="assets/t3_my_robot.png" alt="my_robot.svg rendered" style="width:60%"/>
+			<figcaption><code>my_robot.svg</code> rendered at 800&times;800. Cubeman waves with his
+			right arm raised and bent at the elbow, his left arm out to the side, and his feet
+			planted slightly apart.</figcaption>
+		</figure>
 
 		<h2>Task 4: Barycentric coordinates</h2>
-		Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.
+
+		<p>Pick a triangle with vertices \(P_{0}, P_{1}, P_{2}\). Any point \(P\) can be written as</p>
+
+		\[
+		P = b_{0} P_{0} + b_{1} P_{1} + b_{2} P_{2}, \qquad b_{0} + b_{1} + b_{2} = 1.
+		\]
+
+		<p>The triple \((b_{0}, b_{1}, b_{2})\) is the point's barycentric coordinates. Each \(b_{i}\) measures
+		the relative area of the sub-triangle opposite vertex \(i\):</p>
+
+		\[
+		b_{0} = \frac{\text{Area}(P, P_{1}, P_{2})}{\text{Area}(P_{0}, P_{1}, P_{2})}, \quad b_{1} = \frac{\text{Area}(P_{0}, P, P_{2})}{\text{Area}(P_{0}, P_{1}, P_{2})}, \quad b_{2} = \frac{\text{Area}(P_{0}, P_{1}, P)}{\text{Area}(P_{0}, P_{1}, P_{2})}.
+		\]
+
+		<p>So \(b_{0} = 1\) exactly at \(P_{0}\) and falls to 0 along the opposite edge, and all three are
+		non-negative precisely when \(P\) is inside the triangle. That last fact is why the
+		rasterizer can reuse them as its inside test: the three area ratios I need for shading are
+		the same three numbers the edge functions were already computing. Up to a shared constant
+		they are the edge functions normalised by twice the signed triangle area.</p>
+
+		<p>The intuitive reading of the numbers is "how much does each vertex influence this
+		point". The figure below makes that literal: in panel \(k\) the \(k\)-th vertex is white and
+		the other two are black, so the grey level plotted at each point <em>is</em> that vertex's
+		weight. Each panel peaks at 1 in its own corner and is 0 along the opposite edge, and you
+		can see that the three panels always sum to a constant.</p>
+
+		<figure>
+			<img src="assets/t4_barycentric_weights.png" alt="the three barycentric weight fields" style="width:60%"/>
+			<figcaption>The barycentric weight fields of a triangle. Left: \(b_{0}\), white at the top
+			vertex. Middle: \(b_{1}\), white at the bottom-right vertex. Right: \(b_{2}\), white at the
+			bottom-left vertex.</figcaption>
+		</figure>
+
+		<p>To shade, I compute one colour per channel by interpolating the vertex colours with
+		those weights,</p>
+
+		\[
+		C(P) = b_{0} C_{0} + b_{1} C_{1} + b_{2} C_{2},
+		\]
+
+		<p>which is just three scalar lerps. On the left of the figure below, a single triangle
+		with a red, a green and a blue vertex shows this directly: each channel is largest at its
+		own corner and fades linearly toward the opposite edge.</p>
+
+		<figure>
+			<table style="width: 100%; text-align: center; border-collapse: collapse;">
+				<tr>
+					<td style="text-align: center; border: none; width: 40%;">
+						<img src="assets/t4_rgb_triangle.png" width="330px"/>
+						<figcaption>One triangle, red/green/blue vertices.</figcaption>
+					</td>
+					<td style="text-align: center; border: none;">
+						<img src="assets/t4_test7.png" width="330px"/>
+						<figcaption><code>basic/test7.svg</code>, default view, sample rate 1.</figcaption>
+					</td>
+				</tr>
+			</table>
+			<figcaption>Barycentric colour interpolation, from a single triangle to the
+			<code>test7.svg</code> colour wheel.</figcaption>
+		</figure>
+
+		<p><code>test7.svg</code> is the same idea taken to its conclusion: it is a fan of thin
+		triangles all sharing a common centre, and each one carries a hue from the HSV wheel at
+		its centre vertex and at its rim. Because the interpolation is exact and the shared
+		vertices carry identical colours, the 96 separate triangles join into a single
+		continuous colour wheel with no visible seams &mdash; a useful confirmation that adjacent
+		triangles agree along their shared edges.</p>
 
 		<h2>Task 5: "Pixel sampling" for texture mapping</h2>
-		Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.
 
-		<h2>Task 6: "Level Sampling" with mipmaps for texture mapping</h2>
-		Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.
+		<p>A texture is an image addressed by <em>uv</em> coordinates in \([0,1]^{2}\) rather than by
+		pixels. Textured triangles therefore carry a \((u,v)\) per vertex, and shading a sample
+		means: interpolate \((u,v)\) across the triangle with the same barycentric weights used
+		above, then look up the colour at that position in the texture. The interpolation and the
+		lookup are independent concerns and I implemented them separately &mdash; the
+		interpolation lives in <code>rasterize_textured_triangle()</code>, and the lookup is
+		<code>Texture::sample_nearest()</code> / <code>Texture::sample_bilinear()</code>, so that
+		Task 6 could reuse the lookups unchanged.</p>
 
-		<h2>(Optional) Task 7: Extra Credit - Draw Something Creative!</h2>
-		Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.
+		<p>The two sampling methods differ only in what they do when the uv coordinate does not
+		land exactly on a texel centre:</p>
 
-		<h2>Additional Notes (please remove)</h2>
 		<ul>
-			<li>You can also add code if you'd like as so: <code>code code code</code></li>
-			<li>If you'd like to add math equations, 
-				<ul>
-					<li>You can write inline equations like so: \( a^2 + b^2 = c^2 \)</li>
-					<li>You can write display equations like so: \[ a^2 + b^2 = c^2 \]</li>
-				</ul>
-			</li>
+			<li><b>Nearest.</b> Multiply by the texture's dimensions and floor, which selects the
+			texel whose centre is closest. Cost is one multiply and a truncation per channel
+			lookup. The result is piecewise constant: as uv sweeps across a texel the output
+			jumps from one texel's colour to the next, so a magnified texture looks like a mosaic
+			of flat squares.</li>
+			<li><b>Bilinear.</b> A texel of index \(i\) is centred at \(i + 0.5\) in texel space, so I
+			first shift uv into that frame, take the four texels surrounding the sample point, and
+			blend them by the fractional offsets &mdash; horizontally first, then vertically.
+			Four lookups and three lerps per sample. The result is continuous in uv, so a
+			magnified texture looks smooth.</li>
 		</ul>
+
+		<p>Both clamp their indices to the texture edges, which handles the out-of-range lookups
+		that a uv outside \([0,1]\) would otherwise cause.</p>
+
+		<figure>
+			<table style="width: 100%; text-align: center; border-collapse: collapse;">
+				<tr>
+					<td style="text-align: center; border: none;">
+						<img src="assets/t5_nearest_1spp.png" width="330px"/>
+						<figcaption>Nearest, 1 sample/pixel</figcaption>
+					</td>
+					<td style="text-align: center; border: none;">
+						<img src="assets/t5_nearest_16spp.png" width="330px"/>
+						<figcaption>Nearest, 16 samples/pixel</figcaption>
+					</td>
+				</tr>
+				<tr>
+					<td style="text-align: center; border: none;">
+						<img src="assets/t5_bilinear_1spp.png" width="330px"/>
+						<figcaption>Bilinear, 1 sample/pixel</figcaption>
+					</td>
+					<td style="text-align: center; border: none;">
+						<img src="assets/t5_bilinear_16spp.png" width="330px"/>
+						<figcaption>Bilinear, 16 samples/pixel</figcaption>
+					</td>
+				</tr>
+			</table>
+			<figcaption><code>svg/texmap/test4.svg</code> (the parrot texture), zoomed in so the
+			texture is magnified, with the pixel inspector on the fine stripes on the bird's
+			cheek.</figcaption>
+		</figure>
+
+		<p>To make the difference unambiguous I zoomed in so the texture is <em>magnified</em>
+		rather than minified, because that is where the two methods genuinely disagree. At
+		sample rate 1 the comparison is stark: nearest draws the eye's rim and the diagonal
+		stripes as hard-edged blocks with visible square corners, while bilinear renders the same
+		region as a continuous ramp, and the curves of the eye and beak come out round. The
+		magnified insets show it at the level of individual texels &mdash; nearest produces a
+		staircase in steps of exactly one output pixel per texel, bilinear produces a smooth
+		gradient with no steps at all.</p>
+
+		<p>Turning supersampling on changes both, but not equally, and the reason is worth
+		spelling out. Raising the sample rate to 16 means each output pixel now takes 16 uv
+		samples and averages them. For nearest sampling this is effectively a box filter over
+		whatever texels those 16 samples happened to land in, so the blockiness softens into
+		bands &mdash; but the inset still shows distinctly quantised stripes, because averaging
+		\(n\) nearest-neighbour lookups can only ever produce \(n+1\) distinct values, and within a
+		single output pixel the 16 samples occupy only a small neighbourhood of the texel grid.
+		Bilinear at 16 samples is the smoothest of the four, since each of the 16 lookups is
+		already a continuous function of uv, and averaging them just refines an already smooth
+		signal.</p>
+
+		<p><b>When does the difference matter?</b> A large and visible difference needs the
+		texture to be magnified, so that one texel spans several output pixels. Then nearest
+		exposes the texel grid as literal blocks, and bilinear's interpolation is doing real
+		reconstruction work between known samples. Under minification the two are much closer,
+		because the problem there is not interpolation but <em>undersampling</em>: a single uv
+		lookup per pixel cannot see detail finer than a pixel regardless of how it is
+		interpolated, and bilinear only blends the four texels it does look at. Fixing that
+		requires either more samples or a lower-resolution image to sample from, which is
+		precisely what Task 6 does.</p>
+
+		<h2>Task 6: "Level sampling" with mipmaps for texture mapping</h2>
+
+		<p>A mipmap is a precomputed pyramid of the texture at successively halved resolutions.
+		Level sampling uses it to answer: for this output pixel, which resolution of the texture
+		should I be reading? The right answer is the level where one texel is about the size of
+		one output pixel &mdash; if I read a much finer level than that, I am point-sampling a
+		signal far above the output's Nyquist limit and get aliasing.</p>
+
+		<h3>How I compute the level</h3>
+
+		<p>The rasterizer hands <code>Texture::sample()</code> a <code>SampleParams</code>
+		containing uv at the sample point and at one pixel to the right and one pixel below. The
+		difference vectors, scaled from \([0,1]\) uv space into texel space by the full-resolution
+		dimensions, are the texel footprint of a single pixel:</p>
+
+		\[
+		\frac{\partial (u,v)}{\partial x},\; \frac{\partial (u,v)}{\partial y} \;\;\longmapsto \;\; L = \log _{2} \max (\|\frac{\partial (u,v)}{\partial x}\|, \|\frac{\partial (u,v)}{\partial y}\|),
+		\]
+
+		<p>clamped to the range of levels that exist. A footprint one texel wide gives \(L = 0\)
+		(full resolution) and each doubling of the footprint adds one level, which is exactly the
+		halving in resolution.</p>
+
+		<p>Because this matters for both correctness and speed, I want to be precise about where
+		the derivatives come from. The uv map is affine in \((x,y)\), since it is a barycentric
+		interpolation of per-vertex uv. Its gradient is therefore <em>constant over the whole
+		triangle</em>, and I compute it once in <code>rasterize_textured_triangle()</code> from the
+		barycentric gradients, then add it to the sample's uv to obtain
+		<code>p_dx_uv</code> and <code>p_dy_uv</code>. This is the same quantity the assignment
+		describes as the barycentric coordinates at \((x+1,y)\) and \((x,y+1)\), just evaluated
+		analytically instead of by three extra interpolations per sample, which makes it
+		exact and free.</p>
+
+		<h3>The three level modes</h3>
+
+		<ul>
+			<li><b>L_ZERO</b> always reads level 0, reducing to Task 5 exactly.</li>
+			<li><b>L_NEAREST</b> rounds \(L\) to the nearest integer level and takes a single sample
+			from it. One lookup, no blending, but the level is a step function so the image can
+			show visible boundaries between regions that chose different levels.</li>
+			<li><b>L_LINEAR</b> samples the two levels bracketing \(L\) and blends them by the
+			fractional part. Combined with <code>P_LINEAR</code> this is trilinear filtering: four
+			texel lookups per level, two levels, three lerps to combine them. It is the smoothest
+			of the six combinations and costs the most.</li>
+		</ul>
+
+		<p><code>psm</code> and <code>lsm</code> are independent, so all six combinations work.</p>
+
+		<h3>Tradeoffs between the three techniques</h3>
+
+		<table>
+			<thead>
+				<tr><th>Technique</th><th>Cost per sample</th><th>Memory</th><th>Antialiasing power</th></tr>
+			</thead>
+			<tbody>
+				<tr>
+					<td>Supersampling (<code>sample_rate</code>)</td>
+					<td>Linear in sample rate; the whole scene is rasterized \(s^{2}\) times.</td>
+					<td>\(s^{2}\) colour samples per pixel in the sample buffer.</td>
+					<td>Fixes <em>all</em> aliasing &mdash; triangle edges, texture edges, and
+					intersections between them &mdash; because it is a brute-force area estimate.
+					The most general and by far the most expensive.</td>
+				</tr>
+				<tr>
+					<td>Pixel sampling (<code>psm</code>)</td>
+					<td>Nearest is 1 lookup; bilinear is 4 lookups plus 3 lerps. Constant per
+					sample.</td>
+					<td>None beyond the texture itself.</td>
+					<td>Only smooths <em>within</em> a texel footprint. Removes blockiness under
+					magnification; does essentially nothing for minification aliasing.</td>
+				</tr>
+				<tr>
+					<td>Level sampling (<code>lsm</code>)</td>
+					<td>L_ZERO and L_NEAREST are free (one lookup either way); L_LINEAR doubles the
+					lookups and adds a blend.</td>
+					<td>\(\frac{4}{3}\times\) the texture, fixed, independent of screen resolution.</td>
+					<td>Directly targets minification aliasing, which is the one thing the other
+					two handle poorly. Cannot help under magnification, where there is no level
+					below 0 to use.</td>
+				</tr>
+			</tbody>
+		</table>
+
+		<p>In practice they are complementary: mipmapping for the shrinking case, bilinear for the
+		enlarging case, and supersampling as the general fallback that also cleans up geometry
+		edges. Supersampling is the only one that is resolution-independent in cost; level
+		sampling is the only one whose memory cost is paid once rather than per frame.</p>
+
+		<h3>Results on my own texture</h3>
+
+		<p>For this task I generated my own texture: a 1024&times;1024 colour <em>zone plate</em>,
+		a pattern of concentric rings whose local frequency increases linearly with radius. I
+		deliberately capped its finest detail just below the Nyquist limit of the full-resolution
+		image, so that the texture is perfectly crisp when read at level 0 and aliases violently
+		as soon as it is minified. It is the most demanding test I could construct for level
+		sampling. The image is included with the submission as <code>img/hw1_zoneplate.png</code>,
+		and the scene below is a copy of <code>svg/texmap/test2.svg</code> with its texture
+		filename changed to point at it (<code>svg/texmap/zoneplate.svg</code>).</p>
+
+		<p>The camera is left at the default view, where the texture is minified about
+		threefold.</p>
+
+		<figure>
+			<table style="width: 100%; text-align: center; border-collapse: collapse;">
+				<tr>
+					<td style="text-align: center; border: none;">
+						<img src="assets/t6_lzero_pnearest.png" width="330px"/>
+						<figcaption>L_ZERO + P_NEAREST</figcaption>
+					</td>
+					<td style="text-align: center; border: none;">
+						<img src="assets/t6_lzero_plinear.png" width="330px"/>
+						<figcaption>L_ZERO + P_LINEAR</figcaption>
+					</td>
+				</tr>
+				<tr>
+					<td style="text-align: center; border: none;">
+						<img src="assets/t6_lnearest_pnearest.png" width="330px"/>
+						<figcaption>L_NEAREST + P_NEAREST</figcaption>
+					</td>
+					<td style="text-align: center; border: none;">
+						<img src="assets/t6_lnearest_plinear.png" width="330px"/>
+						<figcaption>L_NEAREST + P_LINEAR</figcaption>
+					</td>
+				</tr>
+			</table>
+			<figcaption>The zone-plate texture under the four required combinations, with the pixel
+			inspector on the fine rings toward the edge of the plate.</figcaption>
+		</figure>
+
+		<p>The two rows could hardly be more different. With <code>L_ZERO</code> the image is
+		covered in large, swirling moir&eacute; artefacts that have nothing to do with the actual
+		pattern &mdash; they are the beat frequencies between the rings and the pixel grid, and
+		the magnified inset is a chaotic checkerboard of light and dark. Note that
+		<code>L_ZERO + P_LINEAR</code> is barely better than <code>L_ZERO + P_NEAREST</code>:
+		bilinear interpolation of four neighbouring texels does essentially nothing when the
+		undersampling is tenfold, which is the point I made at the end of Task 5. Switching to
+		<code>L_NEAREST</code> removes the moir&eacute; almost entirely and the concentric rings
+		become legible again, at the cost of some overall softness &mdash; the level chosen for
+		this scene discards detail that was never going to survive the minification anyway.
+		Within each row the pixel-sampling choice makes only a subtle difference, whereas between
+		the rows the level-sampling choice changes the image completely. That is the opposite of
+		the Task 5 result, where magnification made pixel sampling the decisive choice and level
+		sampling irrelevant.</p>
+
+		<figure>
+			<img src="assets/t6_llinear_plinear.png" alt="trilinear filtering" style="width:55%"/>
+			<figcaption>Bonus: <code>L_LINEAR + P_LINEAR</code> (trilinear filtering) on the same
+			scene. Blending the two bracketing levels removes the residual level-transition
+			boundaries that <code>L_NEAREST</code> leaves behind, at the cost of four texel
+			lookups per level instead of one.</figcaption>
+		</figure>
+
 		</div>
 	</body>
 </html>

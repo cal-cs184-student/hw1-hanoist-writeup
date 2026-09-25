@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<svg version="1.1" xmlns="http://www.w3.org/2000/svg" x="0px" y="0px"
+	 width="360.0px" height="130.0px" viewBox="0 0 360 130" xml:space="preserve">
+<!-- Three copies of the same triangle in a grey frame. In panel k the k-th vertex
+     is white and the other two are black, so the grey level plotted at any point
+     IS the barycentric weight of that vertex there. Together the three panels show
+     the weights summing to one everywhere inside the triangle. -->
+<rect x="0" y="0" width="360" height="130" fill="#F0F0F0"/>
+<colortri points="60 14 112 116 8 116"   colors="1 1 1 1  0 0 0 1  0 0 0 1"/>
+<colortri points="180 14 232 116 128 116" colors="0 0 0 1  1 1 1 1  0 0 0 1"/>
+<colortri points="300 14 352 116 248 116" colors="0 0 0 1  0 0 0 1  1 1 1 1"/>
+</svg>

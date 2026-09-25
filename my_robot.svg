@@ -1,0 +1,124 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<svg version="1.1" id="Layer_1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" x="0px" y="0px"
+	 width="500.0px" height="500.0px" viewBox="0 0 500 500" enable-background="new 0 0 500 500"
+	 xml:space="preserve">
+
+<!--
+  Cubeman, waving hello.
+
+  Every limb is a group whose origin sits at its joint (shoulder / hip / elbow),
+  so a single rotate() on that group swings the whole limb about the joint rather
+  than about its own centre. Nesting the elbow group inside the arm group means
+  the forearm inherits the shoulder rotation and then adds its own bend -- this is
+  the hierarchical transform stack doing the work.
+
+  Screen space has y pointing down, so a positive rotate() angle turns clockwise
+  on screen. The left arm points along -x, so a positive angle there lifts it.
+-->
+<g transform="translate(250 250)">
+
+	<!-- torso -->
+	<polygon fill="#2E86DE" points="-50,-50 50,-50 -50,50 "/>
+	<polygon fill="#2E86DE" points="-50,50 50,-50 50,50"/>
+
+	<!-- head: tilted 14 degrees so he looks like he is enjoying himself -->
+	<g transform="translate(0 -92)">
+		<g transform="rotate(14)">
+			<g transform="scale(.55 .55)">
+				<polygon fill="#F9CA24" points="-50,-50 50,-50 -50,50 "/>
+				<polygon fill="#F9CA24" points="-50,50 50,-50 50,50"/>
+			</g>
+		</g>
+	</g>
+
+	<!-- left arm, raised in a wave.
+	     Pivot at the shoulder (-60,-40); rotate(75) swings the upper arm up and
+	     out. The upper arm runs 0..-60 along x, so the elbow sits 30 units from
+	     the upper arm's own centre; the elbow group then adds 30 degrees of bend,
+	     and because it is nested it inherits the shoulder rotation first. -->
+	<g transform="translate(-60 -40)">
+		<g transform="rotate(75)">
+			<g transform="translate(-30 0)">
+				<g transform="scale(.6 .2)">
+					<polygon fill="#EB3B5A" points="-50,-50 50,-50 -50,50 "/>
+					<polygon fill="#EB3B5A" points="-50,50 50,-50 50,50"/>
+				</g>
+				<!-- elbow: at the far end of the upper arm, -60 in the rotated frame -->
+				<g transform="translate(-30 0)">
+					<g transform="rotate(30)">
+						<g transform="translate(-30 0)">
+							<g transform="scale(.6 .2)">
+								<polygon fill="#EB3B5A" points="-50,-50 50,-50 -50,50 "/>
+								<polygon fill="#EB3B5A" points="-50,50 50,-50 50,50"/>
+							</g>
+						</g>
+					</g>
+				</g>
+			</g>
+		</g>
+	</g>
+
+	<!-- right arm, hanging down and swung a little out to the side. An arm along
+	     +x points downwards for a positive angle, since screen y grows downwards. -->
+	<g transform="translate(60 -40)">
+		<g transform="rotate(40)">
+			<g transform="translate(30 0)">
+				<g transform="scale(.6 .2)">
+					<polygon fill="#EB3B5A" points="-50,-50 50,-50 -50,50 "/>
+					<polygon fill="#EB3B5A" points="-50,50 50,-50 50,50"/>
+				</g>
+				<g transform="translate(30 0)">
+					<g transform="rotate(15)">
+						<g transform="translate(30 0)">
+							<g transform="scale(.6 .2)">
+								<polygon fill="#EB3B5A" points="-50,-50 50,-50 -50,50 "/>
+								<polygon fill="#EB3B5A" points="-50,50 50,-50 50,50"/>
+							</g>
+						</g>
+					</g>
+				</g>
+			</g>
+		</g>
+	</g>
+
+	<!-- left leg, planted a little way out to the side -->
+	<g transform="translate(-40 90)">
+		<g transform="rotate(9)">
+			<g transform="scale(.2 .6)">
+				<polygon fill="#26A69A" points="-50,-50 50,-50 -50,50 "/>
+				<polygon fill="#26A69A" points="-50,50 50,-50 50,50"/>
+			</g>
+			<!-- knee -->
+			<g transform="translate(0 70)">
+				<g transform="rotate(-7)">
+					<g transform="scale(.2 .6)">
+						<polygon fill="#26A69A" points="-50,-50 50,-50 -50,50 "/>
+						<polygon fill="#26A69A" points="-50,50 50,-50 50,50"/>
+					</g>
+				</g>
+			</g>
+		</g>
+	</g>
+
+	<!-- right leg -->
+	<g transform="translate(40 90)">
+		<g transform="rotate(-9)">
+			<g transform="scale(.2 .6)">
+				<polygon fill="#26A69A" points="-50,-50 50,-50 -50,50 "/>
+				<polygon fill="#26A69A" points="-50,50 50,-50 50,50"/>
+			</g>
+			<g transform="translate(0 70)">
+				<g transform="rotate(7)">
+					<g transform="scale(.2 .6)">
+						<polygon fill="#26A69A" points="-50,-50 50,-50 -50,50 "/>
+						<polygon fill="#26A69A" points="-50,50 50,-50 50,50"/>
+					</g>
+				</g>
+			</g>
+		</g>
+	</g>
+
+</g>
+
+</svg>
